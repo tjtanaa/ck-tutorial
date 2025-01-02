@@ -30,3 +30,11 @@
 *.exe
 *.out
 *.app
+
+composable_kernel
+
+*.egg-info
+
+dist/
+
+build/
