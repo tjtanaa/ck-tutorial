@@ -54,12 +54,14 @@ def get_hip_version():
 ext_modules = []
 
 sources = [
-    'torch_int/kernels/linear.cpp',
-    'torch_int/kernels/bmm.cpp',
-    'torch_int/kernels/pybind.cpp', 
+    # 'torch_ck/kernels/fp8gemm.cpp',
+    # 'torch_int/kernels/linear.cpp',
+    # 'torch_int/kernels/bmm.cpp',
+    'torch_ck/kernels/machete_prepack.cpp',
+    'torch_ck/kernels/pybind.cpp', 
 ]
 
-include_dirs = ['torch_int/kernels/include']
+include_dirs = ['torch_ck/kernels']
 extra_link_args = ['libutility.a']
 extra_compile_args = ['-O3','-DNDEBUG', '-std=c++17', '--offload-arch=gfx942', '-DCK_ENABLE_INT8', '-D__HIP_PLATFORM_AMD__=1']
 
@@ -116,24 +118,24 @@ extra_compile_args = {
 }
 
 include_dirs = [
-    Path(this_dir) / "csrc" / "composable_kernel" / "include",
-    Path(this_dir) / "csrc" / "composable_kernel" / "library" / "include",
-    Path(this_dir) / "csrc" / "composable_kernel" / "example" / "ck_tile" / "01_fmha",
+    Path(this_dir) / "composable_kernel" / "include",
+    Path(this_dir) / "composable_kernel" / "library" / "include",
+    # Path(this_dir) / "csrc" / "composable_kernel" / "example" / "ck_tile" / "01_fmha",
 ]
 
-include_dirs.append(
-    Path(this_dir) / "torch_int" / "kernels" / "include"
-)
+# include_dirs.append(
+#     Path(this_dir) / "torch_ck" / "kernels" / "include"
+# )
 ext_modules.append(
     CUDAExtension(
-        name="torch_int",
+        name="torch_ck",
         sources=sources,
         extra_compile_args=extra_compile_args,
         include_dirs=include_dirs,
     )
 )
 setup(
-    name='torch_int',
+    name='torch_ck',
     ext_modules=ext_modules,
     cmdclass={
         'build_ext': BuildExtension.with_options(use_ninja=False)
