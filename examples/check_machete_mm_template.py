@@ -7,7 +7,8 @@ M_N_K_shape_list = [
     # (3840, 4096, 4096),
     # (3840, 8192, 8192),
     # (3840, 16384, 16384),
-    (56, 8192, 7392)
+    # (56, 8192, 7392),
+    (32, 8192, 1024)
 ]
 
 for M, N, K in M_N_K_shape_list:
@@ -36,26 +37,23 @@ for M, N, K in M_N_K_shape_list:
     b_scale = torch.rand((N, 1), dtype=torch.float32).cuda()
     output = torch.zeros((M, N), dtype=torch.float16).cuda()
 
-    mm_output = torch_ck.machete_mm(
+    # mm_output = torch_ck.machete_mm(
+    #     A,
+    #     B,
+    #     a_scale,
+    #     b_scale,
+    # )
+    mm_output = torch_ck.machete_mm_out(
         A,
         B,
         a_scale,
         b_scale,
-        output
+        output,
     )
-    scale_a_dummy = torch.tensor(1.0, device="cuda", dtype=torch.float32)
-    scale_b_dummy = torch.tensor(1.0, device="cuda", dtype=torch.float32)
+    print(mm_output.shape)
 
-    print("A.shape" ,A.shape, A.dtype)
-    print("B.shape", B.shape, B.dtype)
-    scaled_mm_output = torch._scaled_mm(
-        A, B.t(), scale_a_dummy, scale_b_dummy, out_dtype=torch.float32
-    )
-    scaled_mm_output = scaled_mm_output * a_scale * b_scale.t()
+    assert mm_output.shape[0] == M
+    assert mm_output.shape[1] == N
 
-    print(mm_output[:5,:5])
-    print(scaled_mm_output[:5,:5])
-
-
-
+    print(mm_output[:10,:10])
 

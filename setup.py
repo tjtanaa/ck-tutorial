@@ -58,10 +58,22 @@ sources = [
     # 'torch_int/kernels/linear.cpp',
     # 'torch_int/kernels/bmm.cpp',
     # 'torch_ck/kernels/machete_kernels/machete_256_16x64x256_16x16_1x1_16x16_intrawave_v3_2.cpp',
-    'torch_ck/kernels/machete_mm.cpp',
+    # 'torch_ck/kernels/machete_mm.cpp',
+    # 'torch_ck/kernels/machete_kernels/machete_kernel_1.cpp',
     'torch_ck/kernels/machete_prepack.cpp',
     'torch_ck/kernels/pybind.cpp', 
 ]
+
+MACHETE_KERNEL_GEN_PATH='torch_ck/kernels/generated_kernels'
+
+machete_kernel_files = [
+    os.path.join(MACHETE_KERNEL_GEN_PATH, filename) 
+    for filename in os.listdir(MACHETE_KERNEL_GEN_PATH) 
+    if (".cpp" in filename and (not '.jinja' in filename)) 
+]
+
+sources.extend(machete_kernel_files)
+print("sources: ", sources)
 
 include_dirs = ['torch_ck/kernels']
 extra_link_args = ['libutility.a']
@@ -140,7 +152,7 @@ setup(
     name='torch_ck',
     ext_modules=ext_modules,
     cmdclass={
-        'build_ext': BuildExtension.with_options(use_ninja=False)
+        'build_ext': BuildExtension.with_options(use_ninja=True)
     },
     packages=find_packages(
         exclude=['notebook', 'scripts', 'tests']),

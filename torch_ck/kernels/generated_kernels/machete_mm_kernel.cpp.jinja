@@ -1,0 +1,26 @@
+#include "machete_common.h"
+
+at::Tensor machete_mm_out_{{ op.id }}(
+    at::Tensor XQ,
+    at::Tensor WQ,
+    at::Tensor x_scale,
+    at::Tensor w_scale,
+    at::Tensor Y) {
+    
+    return f8f8bf16_pshuffleb_rowwise_impl<
+        DeviceGemmHelper<{{ op.block_size }}, 
+        {{ op.M }},   {{ op.N }},    {{ op.K }},
+        {{ op.MXdl }},   {{ op.NXdl }},    
+        {{ op.MPerXdl }},    {{ op.NPerXdl }},
+        S<{{ op.ABlockTransferThreadClusterLengths }}>, 
+        S<{{ op.BBlockTransferThreadClusterLengths }}>, 
+        S<{{ op.CBlockTransferClusterLengths }}>,     
+        S<{{ op.CBlockTransferScalarPerVector }}>,
+        1,
+        1,
+        {{ op.BlockGemmPipelineScheduler }}, 
+        {{ op.BlockGemmPipelineVersion }}, 
+        {{ op.GemmSpecialization }},
+        {{ op.ABlockTransferSrcScalarPerVector }}, 
+        {{ op.BBlockTransferSrcScalarPerVector }}>>(XQ, WQ, x_scale, w_scale, Y);
+}

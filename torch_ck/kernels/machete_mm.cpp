@@ -6,7 +6,6 @@
 #include <initializer_list>
 #include <cstdlib>
 
-
 #include <ATen/ATen.h>
 #ifdef USE_ROCM
 #include <c10/hip/HIPStream.h>
@@ -354,7 +353,7 @@ at::Tensor machete_mm(
     out_sizes.back() = N;
     Y = at::empty(out_sizes, XQ.options().dtype(at::kHalf));
 
-    return f8f8bf16_pshuffleb_rowwise_impl<DeviceOpInstance_32x1280x8192>(
+    return f8f8bf16_pshuffleb_rowwise_impl<DeviceOpInstance3>(
         XQ, WQ, x_scale, w_scale, Y
     );
     

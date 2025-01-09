@@ -38,3 +38,8 @@ composable_kernel
 dist/
 
 build/
+torch_ck/kernels/generated_kernels/*.cpp
+torch_ck/kernels/generated_kernels/machete_mm_kernel_hip.h
+torch_ck/kernels/generated_kernels/machete_mm_kernel.h
+torch_ck/kernels/**/*_hip.h
+torch_ck/kernels/**/*_hip.cpp
