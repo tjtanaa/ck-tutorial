@@ -124,29 +124,40 @@ static void prepackB_launcher(cudaStream_t stream, const Element* src, Element* 
 
 void prepackB(at::Tensor& B, at::Tensor& Bprepacked) {
 
-  const int N = B.size(0);
-  const int K = B.size(1);
-  const int NXdl = 16;
-  
-  auto stream = at::cuda::getCurrentHIPStream().stream();
+    TORCH_CHECK(
+        (B.dtype() == at::kFloat8_e4m3fnuz) &&
+            (Bprepacked.dtype() == at::kFloat8_e4m3fnuz),
+        "Inputs must be type float8_e4m3fnuz.");
 
-  machete::prepackB_launcher(stream, 
-  reinterpret_cast<FP8*>(B.data_ptr()), 
-  reinterpret_cast<FP8*>(Bprepacked.data_ptr()), 
-  N, K, NXdl);
+    const int N = B.size(0);
+    const int K = B.size(1);
+    const int NXdl = 32;
+    
+    auto stream = at::cuda::getCurrentHIPStream().stream();
 
-  cudaError_t err = cudaGetLastError();
-  if (cudaSuccess != err)
-    throw std::runtime_error("CUDA kernel failed : " + std::to_string(err));
+    machete::prepackB_launcher(stream, 
+    reinterpret_cast<FP8*>(B.data_ptr()), 
+    reinterpret_cast<FP8*>(Bprepacked.data_ptr()), 
+    N, K, NXdl);
+
+    cudaError_t err = cudaGetLastError();
+    if (cudaSuccess != err)
+        throw std::runtime_error("CUDA kernel failed : " + std::to_string(err));
 }
 
 void prepackB_cpu(at::Tensor& B, at::Tensor& Bprepacked) {
-  const int N = B.size(0);
-  const int K = B.size(1);
-  const int NXdl = 16;
 
-  auto B_ptr = reinterpret_cast<FP8*>(B.data_ptr());
-  auto Bprepacked_ptr = reinterpret_cast<FP8*>(Bprepacked.data_ptr());
-  machete::preShuffleBufferCPU(B_ptr, Bprepacked_ptr, N, K, NXdl);
+    TORCH_CHECK(
+        (B.dtype() == at::kFloat8_e4m3fnuz) &&
+            (Bprepacked.dtype() == at::kFloat8_e4m3fnuz),
+        "Inputs must be type float8_e4m3fnuz.");
+        
+    const int N = B.size(0);
+    const int K = B.size(1);
+    const int NXdl = 32;
+
+    auto B_ptr = reinterpret_cast<FP8*>(B.data_ptr());
+    auto Bprepacked_ptr = reinterpret_cast<FP8*>(Bprepacked.data_ptr());
+    machete::preShuffleBufferCPU(B_ptr, Bprepacked_ptr, N, K, NXdl);
 
 }

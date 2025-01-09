@@ -57,6 +57,8 @@ sources = [
     # 'torch_ck/kernels/fp8gemm.cpp',
     # 'torch_int/kernels/linear.cpp',
     # 'torch_int/kernels/bmm.cpp',
+    # 'torch_ck/kernels/machete_kernels/machete_256_16x64x256_16x16_1x1_16x16_intrawave_v3_2.cpp',
+    'torch_ck/kernels/machete_mm.cpp',
     'torch_ck/kernels/machete_prepack.cpp',
     'torch_ck/kernels/pybind.cpp', 
 ]
