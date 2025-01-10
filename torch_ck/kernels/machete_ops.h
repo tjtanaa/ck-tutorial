@@ -7,6 +7,7 @@ void prepackB_cpu(at::Tensor& B, at::Tensor& Bprepacked, const int NXdl=32);
 
 void prepackBDebug(at::Tensor& B, at::Tensor& Bprepacked, at::Tensor& srcIndices, at::Tensor& dstIndices, const int NXdl=32);
 void prepackB_cpuDebug(at::Tensor& B, at::Tensor& Bprepacked, at::Tensor& srcIndices, at::Tensor& dstIndices, const int NXdl=32);
+void compare_fp8_cpuDebug(at::Tensor& A, at::Tensor& B, at::Tensor& Flag, float atol, float rtol);
 
 // at::Tensor machete_mm_out(
 //     at::Tensor XQ,

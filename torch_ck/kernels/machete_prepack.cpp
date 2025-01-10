@@ -226,43 +226,73 @@ void preShuffleBufferCPUDebug(const InOutDataType* src, InOutDataType* dst, int*
 
 
 template <typename Element>
-static __global__ void preShuffleBufferKernelDebug(const Element* src, Element* dst, int* srcIndices, int* dstIndices, int N, int K, int NXdl) {
+static __global__ void preShuffleBufferKernelDebug(const Element* src, Element* dst, int* srcIndices, int* dstIndices, int N, int K, int NXdl) 
+{
     const int KPack = 16;
     const int NLane = NXdl;
     const int KLane = 64 / NLane;
     const int K0 = K / (KLane * KPack);
 
-    int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int total_threads = gridDim.x * blockDim.x;
-    // printf("GPU, outputIndex, sourceIndex\n");
+    // int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    // int total_threads = gridDim.x * blockDim.x;
+    // // printf("GPU, outputIndex, sourceIndex\n");
 
-    for (int idx = global_idx; idx < N * K; idx += total_threads) {
-        int n = idx / K;
-        int k = idx % K;
+    // for (int idx = global_idx; idx < N * K; idx += total_threads) {
+    //     int n = idx / K;
+    //     int k = idx % K;
 
-        if (n < N && k < K)
-        {
-            int n0 = n / NLane;
-            int n1 = n % NLane;
+    //     if (n < N && k < K)
+    //     {
+    //         int n0 = n / NLane;
+    //         int n1 = n % NLane;
 
-            int k0 = k / (KLane * KPack);
-            int tempk = k % (KLane * KPack);
-            int k1 = tempk / KPack;
-            int k2 = tempk % KPack;
+    //         int k0 = k / (KLane * KPack);
+    //         int tempk = k % (KLane * KPack);
+    //         int k1 = tempk / KPack;
+    //         int k2 = tempk % KPack;
 
-            int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
-                            k1 * KPack * NLane + n1 * KPack + k2;
+    //         int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
+    //                         k1 * KPack * NLane + n1 * KPack + k2;
 
-            dst[outputIndex] = src[idx];  // This is equivalent to src[n * K + k]
-            // dst[outputIndex] = src[n * K + k];  // This is equivalent to src[n * K + k]
+    //         dst[outputIndex] = src[idx];  // This is equivalent to src[n * K + k]
+    //         // dst[outputIndex] = src[n * K + k];  // This is equivalent to src[n * K + k]
             
-            srcIndices[idx] = idx;
-            dstIndices[idx] = outputIndex;
-            // if( n < 4 ){
-            //     printf("GPU,%d,%d\n", outputIndex, idx);
-            // }
-        }
+    //         srcIndices[idx] = idx;
+    //         dstIndices[idx] = outputIndex;
+    //         // if( n < 4 ){
+    //         //     printf("GPU,%d,%d\n", outputIndex, idx);
+    //         // }
+    //     }
+    // }
+
+    // Calculate global 2D indices
+    // int n = blockIdx.x * blockDim.x + threadIdx.x;
+    // int k = blockIdx.y * blockDim.y + threadIdx.y;
+    int k = blockIdx.x * blockDim.x + threadIdx.x;
+    int n = blockIdx.y * blockDim.y + threadIdx.y;
+    
+    if (n < N && k < K) {
+        int n0 = n / NLane;
+        int n1 = n % NLane;
+
+        int k0 = k / (KLane * KPack);
+        int tempk = k % (KLane * KPack);
+        int k1 = tempk / KPack;
+        int k2 = tempk % KPack;
+
+        int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
+                        k1 * KPack * NLane + n1 * KPack + k2;
+
+        // dst[outputIndex] = src[idx];  // This is equivalent to src[n * K + k]
+        dst[outputIndex] = src[n * K + k];  // This is equivalent to src[n * K + k]
+        
+        srcIndices[n * K + k] = n * K + k;
+        dstIndices[n * K + k] = outputIndex;
+        // if( n < 4 ){
+        //     printf("GPU,%d,%d\n", outputIndex, idx);
+        // }
     }
+
 }
 
 template <typename Element>
@@ -280,15 +310,28 @@ static void prepackB_launcher(cudaStream_t stream, const Element* src, Element* 
 
 template <typename Element>
 static void prepackB_launcherDebug(cudaStream_t stream, const Element* src, Element* dst, int* srcIndices, int* dstIndices, int N, int K, int NXdl) {
-    // Define the number of threads per block
-    const int threads_per_block = 256;
+    // // Define the number of threads per block
+    // const int threads_per_block = 256;
 
-    // Calculate the number of blocks needed
-    int total_elements = N * K;
-    int blocks = (total_elements + threads_per_block - 1) / threads_per_block;
+    // // Calculate the number of blocks needed
+    // int total_elements = N * K;
+    // int blocks = (total_elements + threads_per_block - 1) / threads_per_block;
 
-    // Launch the kernel
-    machete::preShuffleBufferKernelDebug<Element><<<blocks, threads_per_block, 0, stream>>>(src, dst, srcIndices, dstIndices, N, K, NXdl);
+    // // Launch the kernel
+    // machete::preShuffleBufferKernelDebug<Element><<<blocks, threads_per_block, 0, stream>>>(src, dst, srcIndices, dstIndices, N, K, NXdl);
+    
+    // Define the number of threads per block in 2D
+    const int threads_per_block_x = 16;
+    const int threads_per_block_y = 16;
+    dim3 threads_per_block(threads_per_block_x, threads_per_block_y);
+
+    // Calculate the number of blocks needed in 2D
+    int blocks_x = (K + threads_per_block_x - 1) / threads_per_block_x;
+    int blocks_y = (N + threads_per_block_y - 1) / threads_per_block_y;
+    dim3 num_blocks(blocks_x, blocks_y);
+
+    // Launch the kernel with 2D grid and block dimensions
+    machete::preShuffleBufferKernelDebug<Element><<<num_blocks, threads_per_block, 0, stream>>>(src, dst, srcIndices, dstIndices, N, K, NXdl);
 }
 
 } // namespace machete
@@ -386,3 +429,61 @@ void prepackB_cpuDebug(at::Tensor& B, at::Tensor& Bprepacked, at::Tensor& srcInd
 
 }
 
+
+template <typename InOutDataType>
+void CompareFP8CPU(const InOutDataType* src, InOutDataType* dst, int* flag, int N, int K, float atol, float rtol)
+{
+    // this is a function to perform elementwise equality comparison for FP8 datatype
+    // src and dst are tensors of (N, K) shape
+    
+    for(int n = 0; n < N; ++n)
+    {
+        for(int k = 0; k < K; ++k)
+        {
+            // Calculate the difference between the tensors
+            float diff = std::abs(static_cast<float>(src[n * K + k]) - static_cast<float>(dst[n * K + k]));
+
+            // Determine the tolerance
+            float tolerance = atol + rtol * std::abs(static_cast<float>(dst[n * K + k]));
+
+            flag[n * K + k] = diff > tolerance;
+            // // Check if the difference exceeds the tolerance
+            // if (diff > tolerance)
+            // {
+            //     flag = 1;
+            //     // // Handle the mismatch (e.g., log the mismatch, throw an error, etc.)
+            //     // // For now, we'll just print the mismatch
+            //     // std::cout << "Mismatch at (" << n << ", " << k << "): "
+            //     //           << "src = " << static_cast<float>(src[n * K + k]) << ", "
+            //     //           << "dst = " << static_cast<float>(dst[n * K + k]) << ", "
+            //     //           << "diff = " << diff << ", "
+            //     //           << "tolerance = " << tolerance << std::endl;
+            // }
+        }
+    }
+}
+
+void compare_fp8_cpuDebug(at::Tensor& A, at::Tensor& B, at::Tensor& Flag, float atol, float rtol) {
+
+    TORCH_CHECK(
+        (A.dtype() == at::kFloat8_e4m3fnuz) &&
+            (B.dtype() == at::kFloat8_e4m3fnuz),
+        "Inputs must be type float8_e4m3fnuz.");
+        
+    const int N = B.size(0);
+    const int K = B.size(1);
+    // const int NXdl = 32;
+
+    auto A_ptr = reinterpret_cast<FP8*>(A.data_ptr());
+    auto B_ptr = reinterpret_cast<FP8*>(B.data_ptr());
+    auto Flag_ptr = reinterpret_cast<int*>(Flag.data_ptr());
+    CompareFP8CPU(
+        A_ptr, 
+        B_ptr,
+        Flag_ptr,
+        N,
+        K,
+        atol,
+        rtol);
+
+}
