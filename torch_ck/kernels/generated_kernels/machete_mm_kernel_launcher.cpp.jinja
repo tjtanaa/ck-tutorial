@@ -6,11 +6,12 @@ at::Tensor machete_mm_out(
     at::Tensor x_scale,
     at::Tensor w_scale,
     at::Tensor Y,
-    int op_id) {
+    int op_id,
+    int kbatch) {
     try {
         {% for op in operations %}
         if (op_id == {{ op.id }}) {
-            return machete_mm_out_{{ op.id }}(XQ, WQ, x_scale, w_scale, Y);
+            return machete_mm_out_{{ op.id }}(XQ, WQ, x_scale, w_scale, Y, kbatch);
         }
         {% endfor %}
         else {

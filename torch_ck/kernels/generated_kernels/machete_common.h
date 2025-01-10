@@ -180,7 +180,8 @@ at::Tensor f8f8bf16_pshuffleb_rowwise_impl(
     at::Tensor WQ,
     at::Tensor x_scale,
     at::Tensor w_scale,
-    at::Tensor Y) {
+    at::Tensor Y,
+    ck::index_t KBatch = 1) {
     // Get input information.
     int M = size_to_dim_(XQ.dim() - 1, XQ.sizes());
     int N = WQ.size(0);
@@ -189,7 +190,7 @@ at::Tensor f8f8bf16_pshuffleb_rowwise_impl(
     ck::index_t StrideA = K;
     ck::index_t StrideB = K;
     ck::index_t StrideE = N;
-    ck::index_t KBatch = 1;
+    // ck::index_t KBatch = 1;
 
     // Create gemm launcher and arguments.
     // do GEMM

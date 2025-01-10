@@ -39,22 +39,89 @@ using F32  = float;
 namespace machete {
 
 
+// template <typename InOutDataType>
+// void preShuffleBufferCPU(const InOutDataType* src,
+//                       InOutDataType* dst,
+//                       int N,
+//                       int K,
+//                       int NXdl)
+// {
+//     int KPack = 16;
+//     int NLane = NXdl;
+//     int KLane = 64 / NLane;
+
+//     int N0 = N / NLane;
+//     // K -> K0 KLane KPack
+//     // N -> N0 NLane
+//     // N, K -> K0 N0 KLane NLane KPack
+//     int tempk;
+//     for(int n = 0; n < N; ++n)
+//     {
+//         for(int k = 0; k < K; ++k)
+//         {
+//             int n0 = n / NLane;
+//             int n1 = n % NLane;
+
+//             int k0 = k / (KLane * KPack);
+//             tempk  = k % (KLane * KPack);
+//             int k1 = tempk / KPack;
+//             int k2 = tempk % KPack;
+
+//             int outputIndex = k0 * KPack * NLane * KLane * N0 + n0 * KPack * NLane * KLane +
+//                               k1 * KPack * NLane + n1 * KPack + k2;
+
+//             dst[outputIndex] = src[n * K + k];
+//         }
+//     }
+// }
+
+
+// template <int threads, typename Element>
+// static __global__ void preShuffleBufferKernel(const Element* src, Element* dst, int N, int K, int NXdl) {
+//     int KPack = 16;
+//     int NLane = NXdl;
+//     int KLane = 64 / NLane;
+
+//     int N0 = N / NLane;
+
+//     // Calculate the global thread index
+//     int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
+//     int total_threads = gridDim.x * blockDim.x;
+
+//     // Iterate over the elements each thread is responsible for
+//     for (int idx = global_idx; idx < N * K; idx += total_threads) {
+//         int n = idx / K;
+//         int k = idx % K;
+
+//         int n0 = n / NLane;
+//         int n1 = n % NLane;
+
+//         int k0 = k / (KLane * KPack);
+//         int tempk = k % (KLane * KPack);
+//         int k1 = tempk / KPack;
+//         int k2 = tempk % KPack;
+
+//         int outputIndex = k0 * KPack * NLane * KLane * N0 + n0 * KPack * NLane * KLane +
+//                           k1 * KPack * NLane + n1 * KPack + k2;
+
+//         dst[outputIndex] = src[n * K + k];
+//     }
+// }
+
+
 template <typename InOutDataType>
-void preShuffleBufferCPU(const InOutDataType* src,
-                      InOutDataType* dst,
-                      int N,
-                      int K,
-                      int NXdl)
+void preShuffleBufferCPU(const InOutDataType* src, InOutDataType* dst, int N, int K, int NXdl)
 {
     int KPack = 16;
     int NLane = NXdl;
     int KLane = 64 / NLane;
 
-    int N0 = N / NLane;
+    int K0 = K / (KLane * KPack);
     // K -> K0 KLane KPack
     // N -> N0 NLane
-    // N, K -> K0 N0 KLane NLane KPack
+    // N, K -> N0 K0 KLane NLane KPack
     int tempk;
+    // printf("CPU, outputIndex, sourceIndex\n");
     for(int n = 0; n < N; ++n)
     {
         for(int k = 0; k < K; ++k)
@@ -67,64 +134,169 @@ void preShuffleBufferCPU(const InOutDataType* src,
             int k1 = tempk / KPack;
             int k2 = tempk % KPack;
 
-            int outputIndex = k0 * KPack * NLane * KLane * N0 + n0 * KPack * NLane * KLane +
+            int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
                               k1 * KPack * NLane + n1 * KPack + k2;
 
             dst[outputIndex] = src[n * K + k];
+            if( n < 4 ){
+                printf("CPU,%d,%d\n", outputIndex, n * K + k);
+            }
         }
     }
 }
 
 
-template <int threads, typename Element>
+
+template <typename Element>
 static __global__ void preShuffleBufferKernel(const Element* src, Element* dst, int N, int K, int NXdl) {
-    int KPack = 16;
-    int NLane = NXdl;
-    int KLane = 64 / NLane;
+    const int KPack = 16;
+    const int NLane = NXdl;
+    const int KLane = 64 / NLane;
+    const int K0 = K / (KLane * KPack);
 
-    int N0 = N / NLane;
-
-    // Calculate the global thread index
     int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
     int total_threads = gridDim.x * blockDim.x;
+    // printf("GPU, outputIndex, sourceIndex\n");
 
-    // Iterate over the elements each thread is responsible for
     for (int idx = global_idx; idx < N * K; idx += total_threads) {
         int n = idx / K;
         int k = idx % K;
 
-        int n0 = n / NLane;
-        int n1 = n % NLane;
+        if (n < N && k < K)
+        {
+            int n0 = n / NLane;
+            int n1 = n % NLane;
 
-        int k0 = k / (KLane * KPack);
-        int tempk = k % (KLane * KPack);
-        int k1 = tempk / KPack;
-        int k2 = tempk % KPack;
+            int k0 = k / (KLane * KPack);
+            int tempk = k % (KLane * KPack);
+            int k1 = tempk / KPack;
+            int k2 = tempk % KPack;
 
-        int outputIndex = k0 * KPack * NLane * KLane * N0 + n0 * KPack * NLane * KLane +
-                          k1 * KPack * NLane + n1 * KPack + k2;
+            int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
+                            k1 * KPack * NLane + n1 * KPack + k2;
 
-        dst[outputIndex] = src[n * K + k];
+            dst[outputIndex] = src[idx];  // This is equivalent to src[n * K + k]
+            // dst[outputIndex] = src[n * K + k];  // This is equivalent to src[n * K + k]
+            
+            if( n < 4 ){
+                printf("GPU,%d,%d\n", outputIndex, idx);
+            }
+        }
+    }
+}
+
+
+template <typename InOutDataType>
+void preShuffleBufferCPUDebug(const InOutDataType* src, InOutDataType* dst, int* srcIndices, int* dstIndices, int N, int K, int NXdl)
+{
+    int KPack = 16;
+    int NLane = NXdl;
+    int KLane = 64 / NLane;
+
+    int K0 = K / (KLane * KPack);
+    // K -> K0 KLane KPack
+    // N -> N0 NLane
+    // N, K -> N0 K0 KLane NLane KPack
+    int tempk;
+    // printf("CPU, outputIndex, sourceIndex\n");
+    for(int n = 0; n < N; ++n)
+    {
+        for(int k = 0; k < K; ++k)
+        {
+            int n0 = n / NLane;
+            int n1 = n % NLane;
+
+            int k0 = k / (KLane * KPack);
+            tempk  = k % (KLane * KPack);
+            int k1 = tempk / KPack;
+            int k2 = tempk % KPack;
+
+            int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
+                              k1 * KPack * NLane + n1 * KPack + k2;
+
+            dst[outputIndex] = src[n * K + k];
+            srcIndices[n * K + k] = n * K + k;
+            dstIndices[n * K + k] = outputIndex;
+
+            // if( n < 4 ){
+            //     printf("CPU,%d,%d\n", outputIndex, n * K + k);
+            // }
+        }
+    }
+}
+
+
+
+template <typename Element>
+static __global__ void preShuffleBufferKernelDebug(const Element* src, Element* dst, int* srcIndices, int* dstIndices, int N, int K, int NXdl) {
+    const int KPack = 16;
+    const int NLane = NXdl;
+    const int KLane = 64 / NLane;
+    const int K0 = K / (KLane * KPack);
+
+    int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total_threads = gridDim.x * blockDim.x;
+    // printf("GPU, outputIndex, sourceIndex\n");
+
+    for (int idx = global_idx; idx < N * K; idx += total_threads) {
+        int n = idx / K;
+        int k = idx % K;
+
+        if (n < N && k < K)
+        {
+            int n0 = n / NLane;
+            int n1 = n % NLane;
+
+            int k0 = k / (KLane * KPack);
+            int tempk = k % (KLane * KPack);
+            int k1 = tempk / KPack;
+            int k2 = tempk % KPack;
+
+            int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
+                            k1 * KPack * NLane + n1 * KPack + k2;
+
+            dst[outputIndex] = src[idx];  // This is equivalent to src[n * K + k]
+            // dst[outputIndex] = src[n * K + k];  // This is equivalent to src[n * K + k]
+            
+            srcIndices[idx] = idx;
+            dstIndices[idx] = outputIndex;
+            // if( n < 4 ){
+            //     printf("GPU,%d,%d\n", outputIndex, idx);
+            // }
+        }
     }
 }
 
 template <typename Element>
 static void prepackB_launcher(hipStream_t stream, const Element* src, Element* dst, int N, int K, int NXdl) {
     // Define the number of threads per block
-    const int threads_per_block = 128;
+    const int threads_per_block = 256;
 
     // Calculate the number of blocks needed
     int total_elements = N * K;
     int blocks = (total_elements + threads_per_block - 1) / threads_per_block;
 
     // Launch the kernel
-   hipLaunchKernelGGL(( machete::preShuffleBufferKernel<threads_per_block, Element>), dim3(blocks), dim3(threads_per_block), 0, stream, src, dst, N, K, NXdl);
+   hipLaunchKernelGGL(( machete::preShuffleBufferKernel<Element>), dim3(blocks), dim3(threads_per_block), 0, stream, src, dst, N, K, NXdl);
+}
+
+template <typename Element>
+static void prepackB_launcherDebug(hipStream_t stream, const Element* src, Element* dst, int* srcIndices, int* dstIndices, int N, int K, int NXdl) {
+    // Define the number of threads per block
+    const int threads_per_block = 256;
+
+    // Calculate the number of blocks needed
+    int total_elements = N * K;
+    int blocks = (total_elements + threads_per_block - 1) / threads_per_block;
+
+    // Launch the kernel
+   hipLaunchKernelGGL(( machete::preShuffleBufferKernelDebug<Element>), dim3(blocks), dim3(threads_per_block), 0, stream, src, dst, srcIndices, dstIndices, N, K, NXdl);
 }
 
 } // namespace machete
 
 
-void prepackB(at::Tensor& B, at::Tensor& Bprepacked) {
+void prepackB(at::Tensor& B, at::Tensor& Bprepacked, const int NXdl=32) {
 
     TORCH_CHECK(
         (B.dtype() == at::kFloat8_e4m3fnuz) &&
@@ -133,21 +305,22 @@ void prepackB(at::Tensor& B, at::Tensor& Bprepacked) {
 
     const int N = B.size(0);
     const int K = B.size(1);
-    const int NXdl = 32;
+    // const int NXdl = NXdl;
     
     auto stream = at::cuda::getCurrentHIPStream().stream();
 
     machete::prepackB_launcher(stream, 
-    reinterpret_cast<FP8*>(B.data_ptr()), 
-    reinterpret_cast<FP8*>(Bprepacked.data_ptr()), 
-    N, K, NXdl);
+        reinterpret_cast<FP8*>(B.data_ptr()), 
+        reinterpret_cast<FP8*>(Bprepacked.data_ptr()), 
+        N, K, NXdl
+    );
 
     hipError_t err = hipGetLastError();
     if (hipSuccess != err)
         throw std::runtime_error("CUDA kernel failed : " + std::to_string(err));
 }
 
-void prepackB_cpu(at::Tensor& B, at::Tensor& Bprepacked) {
+void prepackB_cpu(at::Tensor& B, at::Tensor& Bprepacked, const int NXdl=32) {
 
     TORCH_CHECK(
         (B.dtype() == at::kFloat8_e4m3fnuz) &&
@@ -156,10 +329,62 @@ void prepackB_cpu(at::Tensor& B, at::Tensor& Bprepacked) {
         
     const int N = B.size(0);
     const int K = B.size(1);
-    const int NXdl = 32;
+    // const int NXdl = 32;
 
     auto B_ptr = reinterpret_cast<FP8*>(B.data_ptr());
     auto Bprepacked_ptr = reinterpret_cast<FP8*>(Bprepacked.data_ptr());
     machete::preShuffleBufferCPU(B_ptr, Bprepacked_ptr, N, K, NXdl);
 
 }
+
+
+void prepackBDebug(at::Tensor& B, at::Tensor& Bprepacked, at::Tensor& srcIndices, at::Tensor& dstIndices, const int NXdl=32) {
+
+    TORCH_CHECK(
+        (B.dtype() == at::kFloat8_e4m3fnuz) &&
+            (Bprepacked.dtype() == at::kFloat8_e4m3fnuz),
+        "Inputs must be type float8_e4m3fnuz.");
+
+    const int N = B.size(0);
+    const int K = B.size(1);
+    // const int NXdl = NXdl;
+    
+    auto stream = at::cuda::getCurrentHIPStream().stream();
+
+    machete::prepackB_launcherDebug(stream, 
+        reinterpret_cast<FP8*>(B.data_ptr()), 
+        reinterpret_cast<FP8*>(Bprepacked.data_ptr()), 
+        reinterpret_cast<int*>(srcIndices.data_ptr()), 
+        reinterpret_cast<int*>(dstIndices.data_ptr()), 
+        N, K, NXdl
+    );
+
+    hipError_t err = hipGetLastError();
+    if (hipSuccess != err)
+        throw std::runtime_error("CUDA kernel failed : " + std::to_string(err));
+}
+
+void prepackB_cpuDebug(at::Tensor& B, at::Tensor& Bprepacked, at::Tensor& srcIndices, at::Tensor& dstIndices, const int NXdl=32) {
+
+    TORCH_CHECK(
+        (B.dtype() == at::kFloat8_e4m3fnuz) &&
+            (Bprepacked.dtype() == at::kFloat8_e4m3fnuz),
+        "Inputs must be type float8_e4m3fnuz.");
+        
+    const int N = B.size(0);
+    const int K = B.size(1);
+    // const int NXdl = 32;
+
+    auto B_ptr = reinterpret_cast<FP8*>(B.data_ptr());
+    auto Bprepacked_ptr = reinterpret_cast<FP8*>(Bprepacked.data_ptr());
+    machete::preShuffleBufferCPUDebug(
+        B_ptr, 
+        Bprepacked_ptr,
+        reinterpret_cast<int*>(srcIndices.data_ptr()), 
+        reinterpret_cast<int*>(dstIndices.data_ptr()),  
+        N, 
+        K, 
+        NXdl);
+
+}
+

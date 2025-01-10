@@ -69,7 +69,8 @@ def call_kernel(
         a_scale,
         b_scale,
         output,
-        opid):
+        opid,
+        kbatch):
 
     return torch_ck.machete_mm_out(
         A,
@@ -77,17 +78,19 @@ def call_kernel(
         a_scale,
         b_scale,
         output,
-        opid
+        opid,
+        kbatch
     )
 
 KERNELS = []
+NUM_OPS=38
+for kbatch in [1, 2, 4]:
+    for opid in range(0, NUM_OPS):
+        
+        KERNELS.append(
+            partial(call_kernel, opid=opid+1, kbatch=kbatch)
+        )
 
-for opid in range(0, 38):
-    
-    KERNELS.append(
-        partial(call_kernel, opid=opid+1)
-    )
-    
 @torch.inference_mode()
 def main(save_file: str,
          seed: int = 0,
@@ -153,7 +156,7 @@ def main(save_file: str,
     if os.path.exists(save_file):
         os.remove(save_file)
     with open(save_file, "w") as f:
-        f.write("dimension, " + ", ".join([str(opid+1) for opid, _ in enumerate(benchmark_kernels)]) + ", ref_scaled_mm" + "\n")
+        f.write("dimension, " + ", ".join([(str( (opid % NUM_OPS ) + 1 ) + "k" + str( (opid // NUM_OPS) + 1 )) for opid, _ in enumerate(benchmark_kernels)]) + ", ref_scaled_mm" + "\n")
 
     # Benchmark
     dim_seq = []
@@ -263,7 +266,7 @@ if __name__ == '__main__':
                         "If --profile is set, this number is ignored")
     
     parser.add_argument("-o", "--output", type=str, 
-                        default="benchmark_fp8_machete_mm_rocm.csv",
+                        default="benchmark_fp8_machete_mm_rocm_kbatch.csv",
                         help="Path to write the results to")
 
     args = parser.parse_args()
