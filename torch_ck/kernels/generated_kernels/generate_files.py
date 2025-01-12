@@ -677,6 +677,24 @@ operations = [
     "ABlockTransferSrcScalarPerVector": 16, 
     "BBlockTransferSrcScalarPerVector": 16
     },
+    # custom
+    # {"id": 39, 
+    #  "block_size": 256, 
+    #  "M": 16, "N": 256, "K": 128, 
+    #  "MXdl": 16, "NXdl": 16, 
+    #  "MPerXdl": 1, "NPerXdl": 1, 
+    # "ABlockTransferThreadClusterLengths": "16, 16, 1", 
+    # "BBlockTransferThreadClusterLengths": "16, 16, 1", 
+    # "CBlockTransferClusterLengths": "1, 16, 1, 16", 
+    # "CBlockTransferScalarPerVector": "4, 4, 1",
+    # "CShuffle_MX_Per_Wave_Pershuffle": 1,
+    # "CShuffle_NX_Per_Wave_Pershuffle": 1,
+    # "BlockGemmPipelineScheduler": "ck::BlockGemmPipelineScheduler::Intrawave",
+    # "BlockGemmPipelineVersion": "ck::BlockGemmPipelineVersion::v1", 
+    # "GemmSpecialization": "ck::tensor_operation::device::GemmSpecialization::MNKPadding",
+    # "ABlockTransferSrcScalarPerVector": 16, 
+    # "BBlockTransferSrcScalarPerVector": 16
+    # },
     # Add more operations as needed
 ]
 
@@ -688,9 +706,8 @@ def generate_kernel_param_files():
 
         # Render the template with the operations
         output = template.render(op=op)
-
         # Write the output to a C++ file
-        with open(f'machete_mm_out_{id+1}.cpp', 'w') as f:
+        with open(f'machete_mm_out_{op["id"]}.cpp', 'w') as f:
             f.write(output)
 
 def generate_kernel_header_file():
