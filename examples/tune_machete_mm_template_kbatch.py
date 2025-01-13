@@ -4,15 +4,38 @@ from collections import OrderedDict
 from typing import List, Callable
 import os
 from functools import partial
-
+import copy
 import numpy as np
 import argparse
 import torch
 import torch_ck
 
+from typing import Tuple
+
+from weight_shapes import WEIGHT_SHAPES
+
 # M = [1, 16, 32, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 1280, 2048, 3072, 3584, 4096, 5120, 6144, 7168, 8192]
 # N = [1, 16, 32, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 1280, 2048, 3072, 3584, 4096, 5120, 6144, 7168, 8192]
 # K = [1024, 1280, 2048, 4096, 7168, 8192, 16384]
+
+COMPUTE_FLOPS=True
+
+def get_flops(ave_time, M, N, K):
+    flop = 2 * M * N * K
+
+    tflops = flop / 1e9 / ave_time
+
+    return tflops
+
+
+def get_bandwidth(ave_time, M, N, K, A_datatype_size=2, B_datatype_size=2, E_datatype_size=4):
+
+    num_btype = A_datatype_size * M * K + B_datatype_size * K * N + E_datatype_size * M * N;
+
+    gb_per_sec = num_btype / 1e6 / ave_time
+
+    return gb_per_sec
+
 
 MNK_List = [
     (3840, 64,64),
@@ -32,6 +55,7 @@ MNK_List = [
     (5000, 8192, 3584),
 ]
 
+# Add UC interested weight shape
 for b in range(7):
 
     B = 2**b
@@ -57,7 +81,21 @@ for b in range(7):
 
     MNK_List.extend(mnk)
 
+# add model related weight shape
+for b in range(7):
 
+    B = 2**b
+    for _, shape_list in WEIGHT_SHAPES.items():
+        
+        for KN, tp_split_dim in shape_list:
+            for tp_size in [1, 2, 4, 8]:
+                if KN[tp_split_dim] % tp_size == 0:
+                    KN[tp_split_dim] = KN[tp_split_dim] // tp_size
+                    K, N = KN
+                    MNK_List.append(
+                        (B, N, K)
+                    )
+            
 
 def rand_data(shape, dtype=torch.float16, scale=1):
     return (scale * torch.rand(shape, device="cuda") - 0.3).to(dtype)
@@ -84,7 +122,7 @@ def call_kernel(
 
 KERNELS = []
 NUM_OPS=38
-for kbatch in [1, 2, 4]:
+for kbatch in [1, 2, 4, 8]:
     for opid in range(0, NUM_OPS):
         
         KERNELS.append(
@@ -156,7 +194,7 @@ def main(save_file: str,
     if os.path.exists(save_file):
         os.remove(save_file)
     with open(save_file, "w") as f:
-        f.write("dimension, " + ", ".join([(str( (opid % NUM_OPS ) + 1 ) + "k" + str( (opid // NUM_OPS) + 1 )) for opid, _ in enumerate(benchmark_kernels)]) + ", ref_scaled_mm" + "\n")
+        f.write("dimension, " + "TFlops, " + "GB/s, " + ", ".join([(str( (opid % NUM_OPS ) + 1 ) + "k" + str( 2**((opid // NUM_OPS) + 1) )) for opid, _ in enumerate(benchmark_kernels)]) + ", ref_scaled_mm" + "\n")
 
     # Benchmark
     dim_seq = []
@@ -239,7 +277,16 @@ def main(save_file: str,
         print("[{}, {}, {}] - {}: {:.3f}us".format(m, n, k, "reference_scaled_mm_kernel", latency * 1000000))
 
         with open(save_file, "a") as f:
-            f.write("{}_{}_{}, ".format(m, n, k) + ", ".join([str(l*1000000.0) for l in latencies]) + "\n")
+            if COMPUTE_FLOPS:
+                f.write("{}_{}_{}, ".format(m, n, k) 
+                    + ", ".join([str(l*1000000.0) for l in latencies]) + ", "
+                    + ", ".join([str(get_flops(l*1000.0, m, n, k)) if l > 0 else str(-1000000) for l in latencies]) + ", "
+                    + ", ".join([str(get_bandwidth(l*1000.0, m, n, k, 2, 2, 4)) if l > 0 else str(-1000000) for l in latencies])
+                    + "\n")
+            else:
+                f.write("{}_{}_{}, ".format(m, n, k) + ", ".join([str(l*1000000.0) for l in latencies]) + "\n")
+
+
 
     # print(f"Kernel running time: {latency * 1000000:.3f} us")
 

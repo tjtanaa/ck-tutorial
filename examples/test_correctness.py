@@ -1,3 +1,7 @@
+# By default pytest run as many concurrent worker as possible
+# We will restrict the number of concurrent worker to prevent
+# racing condition that causes GPU OOM
+# HIP_VISIBLE_DEVICES=6 pytest -c 1 examples/test_correctness.py
 import itertools
 
 import pytest
@@ -93,8 +97,6 @@ for b in range(7):
     MNK_List.extend(mnk)
 
 NXDL_PREPACK_VALUE=[16, 32]
-# NXDL_PREPACK_VALUE=[32]
-# NXDL_PREPACK_VALUE=[16]
 
 DTYPES=[torch.float8_e4m3fnuz]
 SEEDS = [0]
@@ -109,140 +111,42 @@ def setup_cuda():
     torch.set_default_device("cuda")
 
 
-# # fail one test case 
-# # HIP_VISIBLE_DEVICES=6 pytest -c 1 examples/test_correctness.py::test_machete_prepack_B_tensor[16-mnk_shape5-dtype5-0]
-# @pytest.mark.parametrize("nxdl_value,mnk_shape,dtype,seed",
-#                          itertools.product(NXDL_PREPACK_VALUE, MNK_List, DTYPES,
-#                                            SEEDS))
-# @torch.inference_mode()
-# def test_machete_prepack_B_tensor(nxdl_value, mnk_shape, dtype, seed):
+# fail one test case 
+# HIP_VISIBLE_DEVICES=6 pytest -c 1 examples/test_correctness.py::test_machete_prepack_B_tensor[16-mnk_shape5-dtype5-0]
+@pytest.mark.parametrize("nxdl_value,mnk_shape,dtype,seed",
+                         itertools.product(NXDL_PREPACK_VALUE, MNK_List, DTYPES,
+                                           SEEDS))
+@torch.inference_mode()
+def test_machete_prepack_B_tensor(nxdl_value, mnk_shape, dtype, seed):
 
-#     print(nxdl_value, mnk_shape, dtype, seed)
-#     torch.manual_seed(seed)
+    print(nxdl_value, mnk_shape, dtype, seed)
+    torch.manual_seed(seed)
 
-#     _, N, K = mnk_shape
+    _, N, K = mnk_shape
 
-#     if not check_if_run_test_case(K, nxdl_value):
-#             pytest.skip("Skipping this test due K not divisible by (KLane * KPack)")
+    # determine the padding
+    Kpad64 = compute_kpad(K, nxdl_value)
+    Bvalues = torch.rand((N, K), dtype=torch.float16).to(dtype).to("cpu")
+    Bcpu = torch.zeros((N, K + Kpad64), dtype=torch.float16).to(dtype).to("cpu")
+    Bcpu[:N, :K] = Bvalues
 
-#     Bcpu = torch.rand((N, K), dtype=torch.float16).to("cpu")
+    # Compute using the reference CPU implementation
+    Bprepackcpu = torch.zeros((N, K + Kpad64), dtype=torch.float16).to("cpu")
+    Bprepackcpu_output = Bprepackcpu.to(dtype)
+    torch_ck.machete_prepack_B_cpu(Bcpu.to(dtype), Bprepackcpu_output, nxdl_value)
+    B = Bcpu.cuda().to(dtype)
 
-#     # Compute using the reference CPU implementation
-#     Bprepackcpu = torch.zeros((N, K), dtype=torch.float16).to("cpu")
+    # Compute using GPU implementation
+    Bprepackcuda = torch.zeros((N, K + Kpad64), dtype=torch.float16)
+    Bprepackcuda_output = Bprepackcuda.to(dtype)
+    torch_ck.machete_prepack_B(B, Bprepackcuda_output, nxdl_value)
 
-#     Bprepackcpu_output = Bprepackcpu.to(dtype)
-#     torch_ck.machete_prepack_B_cpu(Bcpu.to(dtype), Bprepackcpu_output, nxdl_value)
-
-
-#     # print("Npad: ", 16 - (N % 16))
-#     # print("Kpad: ", 16 - (K % 16))
-
-#     # print("Npad32: ", 32 - (N % 32))
-#     # print("Kpad32: ", 32 - (K % 32))
-
-#     # print("Npad64: ", 64 - (N % 64))
-#     # print("Kpad64: ", 64 - (K % 64))
-#     # Kpad64 = (K % 64)
-#     # Compute using GPU implementation
-#     B = Bcpu.cuda().to(dtype)
-#     Bprepackcuda = torch.zeros((N, K), dtype=torch.float16)
-#     Bprepackcuda_output = Bprepackcuda.to(dtype)
-#     torch_ck.machete_prepack_B(B, Bprepackcuda_output, nxdl_value)
-
-#     assert not torch.allclose(Bcpu, Bprepackcpu_output.to(torch.float16))
-
-#     # print(
-#     #     torch.amax(
-#     #         torch.abs(Bprepackcuda_output.to(torch.float16).clone().cpu()[:20,:20] - Bprepackcpu_output.to(torch.float16)[:20,:20])
-#     #     )
-#     # )
-#     # print(Bprepackcuda_output.to(torch.float16).clone().cpu()[:20,:20])
-
-#     assert_verbose_allclose(Bprepackcuda_output.to(torch.float16).clone().cpu(), Bprepackcpu_output.to(torch.float16))
-#     # torch.equal(Bprepackcuda_output.clone().cpu(), Bprepackcpu_output)
-
-#     # Flag = torch.zeros((N, K), dtype=torch.int)
-#     # torch_ck.compare_fp8_cpuDebug(Bprepackcuda_output.clone().cpu(), Bprepackcpu_output, Flag, 1e-3, 1e-5)
-
-#     # assert torch.sum(Flag) < 1
-
-#     # assert False
-    
-
-# @pytest.mark.parametrize("nxdl_value,mnk_shape,dtype,seed",
-#                          itertools.product(NXDL_PREPACK_VALUE, MNK_List, DTYPES,
-#                                            SEEDS))
-# @torch.inference_mode()
-# def test_machete_prepack_B_tensor_Debug(nxdl_value, mnk_shape, dtype, seed):
-
-#     print(nxdl_value, mnk_shape, dtype, seed)
-#     torch.manual_seed(seed)
-
-#     _, N, K = mnk_shape
-#     if not check_if_run_test_case(K, nxdl_value):
-#             pytest.skip("Skipping this test due K not divisible by (KLane * KPack)")
-
-#     # CPU Data
-#     Bcpu = torch.rand((N, K), dtype=torch.float16).to("cpu")
-
-#     # GPU Data
-#     B = Bcpu.clone().cuda().to(dtype)
-
-#     # Compute using the reference CPU implementation
-#     Bprepackcpu = torch.zeros((N, K), dtype=torch.float16).to("cpu")
-#     BprepackcpuSrcIndex = torch.zeros((N, K), dtype=torch.int).to("cpu")
-#     BprepackcpuDstIndex = torch.zeros((N, K), dtype=torch.int).to("cpu")
-
-#     Bprepackcpu_output = Bprepackcpu.to(dtype)
-#     torch_ck.machete_prepack_B_cpuDebug(Bcpu.to(dtype), Bprepackcpu_output, BprepackcpuSrcIndex, BprepackcpuDstIndex, nxdl_value)
-
-
-#     # print("Npad: ", 16 - (N % 16))
-#     # print("Kpad: ", 16 - (K % 16))
-
-#     # print("Npad32: ", 32 - (N % 32))
-#     # print("Kpad32: ", 32 - (K % 32))
-
-#     # print("Npad64: ", 64 - (N % 64))
-#     # print("Kpad64: ", 64 - (K % 64))
-#     # Kpad64 = (K % 64)
-#     # Compute using GPU implementation
-#     Bprepackcuda = torch.zeros((N, K), dtype=torch.float16)
-#     BprepackcudaSrcIndex = torch.zeros((N, K), dtype=torch.int)
-#     BprepackcudaDstIndex = torch.zeros((N, K), dtype=torch.int)
-#     Bprepackcuda_output = Bprepackcuda.to(dtype)
-#     torch_ck.machete_prepack_BDebug(B, Bprepackcuda_output, BprepackcudaSrcIndex, BprepackcudaDstIndex, nxdl_value)
-
-#     # if Kpad64 > 0:
-#     #     Bprepackcuda_output = Bprepackcuda_output[:, :K].contiguous()
-
-#     assert not torch.allclose(Bcpu, Bprepackcpu_output.to(torch.float16))
-
-#     # print(
-#     #     torch.amax(
-#     #         torch.abs(Bprepackcuda_output.to(torch.float16).clone().cpu()[:20,:20] - Bprepackcpu_output.to(torch.float16)[:20,:20])
-#     #     )
-#     # )
-#     # print(Bprepackcuda_output.to(torch.float16).clone().cpu()[:20,:20])
-
-#     # print(BprepackcudaSrcIndex.clone().cpu()[-10:,-45:])
-#     # print(BprepackcudaDstIndex.clone().cpu()[-10:,-45:])
-#     # print(BprepackcpuDstIndex[-10:,-45:])
-#     # assert_verbose_allclose(BprepackcudaSrcIndex.clone().cpu(), BprepackcpuSrcIndex)
-#     # assert_verbose_allclose(BprepackcudaDstIndex.clone().cpu(), BprepackcpuDstIndex)
-#     # torch.equal(Bprepackcuda_output.clone().cpu(), Bprepackcpu_output)
-#     # print(Bprepackcuda_output.clone().cpu()[:10,:10])
-#     # print(Bprepackcpu_output[:10,:10])
-    
-#     # print(Bprepackcuda_output.clone().cpu()[-10:,-45:])
-#     # print(Bprepackcpu_output[-10:,-45:])
-#     assert_verbose_allclose(
-#         Bprepackcuda_output.to(torch.float16).clone().cpu(), 
-#         Bprepackcpu_output.to(torch.float16), 
-#         max_print=200
-#     )
-
-#     # assert False
+    assert_verbose_allclose(
+        Bprepackcuda_output.to(torch.float16).clone().cpu(), 
+        Bprepackcpu_output.to(torch.float16),
+         rtol=1e-3,
+         atol=5e-8,
+         max_print=200)
     
 
 @pytest.mark.parametrize("nxdl_value,mnk_shape,dtype,seed",
@@ -264,24 +168,12 @@ def test_machete_mm(nxdl_value, mnk_shape, dtype, seed):
     Bvalues = torch.rand((N, K), dtype=torch.float16).to(dtype).to("cpu")
     Bcpu = torch.zeros((N, K + Kpad64), dtype=torch.float16).to(dtype).to("cpu")
     Bcpu[:N, :K] = Bvalues
-
-
-    # Compute using the reference CPU implementation
-    Bprepackcpu = torch.zeros((N, K + Kpad64), dtype=torch.float16).to("cpu")
-
-    Bprepackcpu_output = Bprepackcpu.to(dtype)
-    torch_ck.machete_prepack_B_cpu(Bcpu.to(dtype), Bprepackcpu_output, nxdl_value)
-
-    Bprepackcuda_output = Bprepackcpu_output.cuda()
     B = Bcpu.cuda().to(dtype)
 
-    # Kpad64 = 0
-    # print("Kpad64: ", Kpad64)
     # Compute using GPU implementation
-    # B = Bcpu.cuda().to(dtype)
-    # Bprepackcuda = torch.zeros((N, K + Kpad64), dtype=torch.float16)
-    # Bprepackcuda_output = Bprepackcuda.to(dtype)
-    # torch_ck.machete_prepack_B(B, Bprepackcuda_output, nxdl_value)
+    Bprepackcuda = torch.zeros((N, K + Kpad64), dtype=torch.float16)
+    Bprepackcuda_output = Bprepackcuda.to(dtype)
+    torch_ck.machete_prepack_B(B, Bprepackcuda_output, nxdl_value)
 
     A = torch.rand((M, K), dtype=torch.float16).cuda().to(torch.float8_e4m3fnuz)
 
@@ -289,29 +181,22 @@ def test_machete_mm(nxdl_value, mnk_shape, dtype, seed):
     if Kpad64 > 0:
         # Pad zeros along the K dimension
         # The padding format is (padding_left, padding_right) for the last dimension
-        # macheteA = F.pad(A, (0, Kpad64), "constant", 0)
-        macheteA = torch.zeros((M, K + Kpad64), dtype=torch.float16).cuda().to(torch.float8_e4m3fnuz)
-        macheteA[:M, :K] = A
-    
-    print("A.shape: ", A.shape, "\tmacheteA.shape: ", macheteA.shape, "\tBprepackcuda_output.shape: ", Bprepackcuda_output.shape)
-    print(macheteA[:, K:])
-
-    # zero_A = macheteA[:, K:].to(torch.float32).clone().cpu().numpy()
-
-    # print(macheteA[:, K:].to(torch.float32).clone().cpu().numpy())
-    # print(zero_A[0,0])
-
+        macheteA = F.pad(A, (0, Kpad64), "constant", 0)
+        # equivalent to the following implementation
+        # macheteA = torch.zeros((M, K + Kpad64), dtype=torch.float16).cuda().to(torch.float8_e4m3fnuz)
+        # macheteA[:M, :K] = A
 
     a_scale = torch.rand((M, 1), dtype=torch.float32).cuda()
     b_scale = torch.rand((N, 1), dtype=torch.float32).cuda()
     machete_output = torch.zeros((M, N), dtype=torch.float16).cuda()
 
-    
-    # opid=31
-    # kbatch=1
+    # Hardcode the op that is used to run for nxdl = 16
+    # Note, not all shape the op will support
     opid=32
     kbatch=1
 
+    # Hardcode the op that is used to run for nxdl = 32
+    # Note, not all shape the op will support
     if nxdl_value == 32:
         opid=10
         kbatch=1
@@ -337,24 +222,10 @@ def test_machete_mm(nxdl_value, mnk_shape, dtype, seed):
     )
     scaled_mm_output = scaled_mm_output * a_scale * b_scale.t()
 
+    # Note: the rtol and atol follows the tolerance defined inthe ck
     assert_verbose_allclose(
          machete_output, 
          scaled_mm_output,
-        #  rtol=1.0,
-        #  atol=0.1,
-        #  rtol=0.05,
          rtol=1e-3,
          atol=5e-8,
-        #  atol=1e-9,
          max_print=200)
-
-    # assert not torch.allclose(Bcpu, Bprepackcpu_output.to(torch.float16))
-
-    # print(
-    #     torch.amax(
-    #         torch.abs(Bprepackcuda_output.to(torch.float16).clone().cpu()[:20,:20] - Bprepackcpu_output.to(torch.float16)[:20,:20])
-    #     )
-    # )
-    # print(Bprepackcuda_output.to(torch.float16).clone().cpu()[:20,:20])
-
-    # assert_verbose_allclose(Bprepackcuda_output.to(torch.float16).clone().cpu(), Bprepackcpu_output.to(torch.float16))

@@ -30,6 +30,13 @@ make -j64
 make -j install
 ```
 
+## Generate Machete Kernel Code
+```bash
+cd torch_ck/kernels/generated_kernels
+python generate_files.py
+cd ../../../
+```
+
 ## Install torch_ck
 ```bash
 python setup.py develop
