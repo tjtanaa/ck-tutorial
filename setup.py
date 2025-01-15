@@ -152,7 +152,7 @@ setup(
     name='torch_ck',
     ext_modules=ext_modules,
     cmdclass={
-        'build_ext': BuildExtension.with_options(use_ninja=True)
+        'build_ext': BuildExtension.with_options(use_ninja=True, keep_going=True)
     },
     packages=find_packages(
         exclude=['notebook', 'scripts', 'tests']),

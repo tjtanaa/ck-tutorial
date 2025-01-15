@@ -38,47 +38,46 @@ def get_bandwidth(ave_time, M, N, K, A_datatype_size=2, B_datatype_size=2, E_dat
 
 
 MNK_List = [
-    # (3840, 64,64),
-    # (3840, 128,128),
-    # (3840, 256,256),
-    # (3840, 4096, 4096),
-    # (3840, 8192, 8192),
-    # (3840, 16384, 16384),
-    # (56, 8192, 7392),
-    # (32, 1024, 8192),
-    # (32, 1280, 8192),
-    # (32, 8192, 1024),
-    # (32, 7168, 8192),
-    # (32, 8192, 3584),
-    # (5000, 1280, 8192),
-    # (5000, 8192, 1024),
-    # (5000, 7168, 8192),
-    # (5000, 8192, 3584),
+    (3840, 64,64),
+    (3840, 128,128),
+    (3840, 256,256),
+    (3840, 4096, 4096),
+    (3840, 8192, 8192),
+    (3840, 16384, 16384),
+    (56, 8192, 7392),
+    (32, 1024, 8192),
+    (32, 1280, 8192),
+    (32, 8192, 1024),
+    (32, 7168, 8192),
+    (32, 8192, 3584),
+    (5000, 1280, 8192),
+    (5000, 8192, 1024),
+    (5000, 7168, 8192),
+    (5000, 8192, 3584),
 ]
 
 # Add UC interested weight shape
-# for b in range(9, 15):
-for b in range(10, 15):
+for b in range(7):
 
     B = 2**b
     mnk = [
         (B, 1280, 8192),
         (B, 8192, 1024),
         (B, 7168, 8192),
-        # (B, 8192, 3584),
+        (B, 8192, 3584),
         (B, 6144, 4096),
         (B, 4096, 4096),
         (B, 28672, 4096),
-        # (B, 4096, 14336), # opid 889 has problem
+        (B, 4096, 14336),
         (B, 2560, 8192),
         (B, 8192, 2048),
         (B, 14336, 8192),
-        # (B, 8192, 7168),
+        (B, 8192, 7168),
         (B, 3072, 4096),
         (B, 4096, 2048),
         (B, 2560, 8192),
         (B, 14336, 4096),
-        # (B, 4096, 7168),
+        (B, 4096, 7168),
     ]
 
     MNK_List.extend(mnk)
@@ -97,7 +96,177 @@ for b in range(10, 15):
 #                     MNK_List.append(
 #                         (B, N, K)
 #                     )
-            
+
+def getHeuristicSearchFunction(M, N, K):
+    OpID = 32
+    Kbatch = 2
+    if M < 32 and N >= 4096 and K >= 1024:
+        OpID = 33
+        Kbatch = 2 // 2
+    elif M >= 32 and N >= 4096 and K >= 1024:
+        OpID = 32
+        Kbatch = 2 // 2
+    elif M >= 16 and N >= 8192 and K >= 2048:
+        OpID = 25
+        Kbatch = 8 // 2
+    elif M >= 64 and N >= 8192 and K >= 4096:
+        OpID = 26
+        Kbatch = 8 // 2
+    elif M >= 5000:
+        OpID = 46
+        Kbatch = 2 // 2
+    elif N >= 14336 or K >= 14336:
+        OpID = 64
+        Kbatch = 16 // 2
+    elif M >= 1 and N >= 1280 and K >= 8192:
+        OpID = 33
+        Kbatch = 16 // 2
+    elif M >= 1 and N >= 2560 and K >= 8192:
+        OpID = 26
+        Kbatch = 16 // 2
+    elif M >= 1 and N >= 7168 and K >= 8192:
+        OpID = 33
+        Kbatch = 16 // 2
+    elif M >= 1 and N >= 14336 and K >= 8192:
+        OpID = 64
+        Kbatch = 8 // 2
+    elif M >= 1 and N >= 4096 and K >= 14336:
+        OpID = 25
+        Kbatch = 16 // 2
+    elif M >= 3840 and N >= 16384 and K >= 16384:
+        OpID = 68
+        Kbatch = 4
+    else:
+        OpID = 32
+        Kbatch = 2 // 2
+    
+    return partial(call_kernel, opid=OpID, kbatch=Kbatch)          
+
+def select_kernel_configurationGPT4o(M, N, K):
+    """
+    Select the best kernel configuration (OpID, Kbatch) based on M, N, and K dimensions.
+
+    Parameters:
+        M (int): Dimension M
+        N (int): Dimension N
+        K (int): Dimension K
+
+    Returns:
+        tuple: (OpID, Kbatch)
+    """
+    # Rule 1: Small M (M <= 16)
+    if M <= 16:
+        if N == 8192 and K == 1024:
+            return 33, 2
+        elif N == 8192 and K == 3584:
+            return 32, 8
+        elif N == 8192 and K == 7168:
+            return 25, 8
+        elif N == 14336 and K == 8192:
+            return 64, 8
+        elif N == 4096 and K == 14336:
+            return 25, 16
+        else:
+            return 32, 8  # Default for small M
+
+    # Rule 2: Medium M (16 < M <= 64)
+    elif 16 < M <= 64:
+        if N == 8192 and K == 1024:
+            return 32, 2
+        elif N == 8192 and K == 3584:
+            return 25, 2
+        elif N == 8192 and K == 7168:
+            return 26, 8
+        elif N == 14336 and K == 8192:
+            return 64, 8
+        elif N == 4096 and K == 14336:
+            return 32, 16
+        else:
+            return 32, 4  # Default for medium M
+
+    # Rule 3: Large M (M > 64)
+    elif M > 64:
+        if N == 8192 and K == 1024:
+            return 46, 2
+        elif N == 8192 and K == 3584:
+            return 25, 2
+        elif N == 8192 and K == 7168:
+            return 64, 8
+        elif N == 14336 and K == 8192:
+            return 68, 8
+        elif N == 16384 and K == 16384:
+            return 68, 4
+        else:
+            return 46, 2  # Default for large M
+
+    # Rule 4: High N and K (N, K >= 8192)
+    if N >= 8192 and K >= 8192:
+        if M <= 16:
+            return 64, 8
+        elif M <= 64:
+            return 32, 8
+        else:
+            return 68, 4
+
+    # Default case
+    return 32, 8  # Default configuration if no specific rule matches
+
+def getHeuristicSearchFunctionGPT4o(M, N, K):
+    OpID, Kbatch = select_kernel_configurationGPT4o(M, N, K)
+    return partial(call_kernel, opid=OpID, kbatch=Kbatch) 
+
+def select_kernel_configSonnet(M, N, K):
+    # Default values
+    OpID = 32
+    Kbatch = 2
+
+    # Rule 1: When M is small (1-16)
+    if 1 <= M <= 16:
+        OpID = 32 if M > 8 else 33
+        Kbatch = 16 if K >= 4096 else 2
+
+    # Rule 2: When M is medium (32-64)
+    elif 32 <= M <= 64:
+        OpID = 25 if N >= 8192 else 32
+        Kbatch = 8 if K >= 3584 else 2
+
+    # Rule 3: When M is large (>1000)
+    elif M > 1000:
+        OpID = 46
+        Kbatch = 2
+
+    # Rule 4: When N is large (≥8192)
+    if N >= 8192:
+        OpID = 25 if OpID not in [46, 68] else OpID
+        Kbatch = min(Kbatch, 8)
+
+    # Rule 5: When K is small (≤1024)
+    if K <= 1024:
+        OpID = 33 if M <= 16 else 32
+        Kbatch = 2
+
+    # Rule 6: When K is large (≥4096)
+    elif K >= 4096:
+        if OpID not in [46, 68]:
+            OpID = 64 if M >= 64 or N >= 14336 else 26
+        Kbatch = max(Kbatch, 8)
+
+    # Rule 7: For square matrices (M = N = K and large)
+    if M == N == K and M >= 4096:
+        OpID = 68 if M > 8192 else 46
+        Kbatch = 4 if M > 8192 else 2
+
+    # Rule 8: When all dimensions are large
+    if M >= 64 and N >= 8192 and K >= 4096:
+        OpID = 68
+        Kbatch = 8
+
+    return OpID, Kbatch
+
+def getHeuristicSearchFunctionSonnet(M, N, K):
+    OpID, Kbatch = select_kernel_configSonnet(M, N, K)
+    return partial(call_kernel, opid=OpID, kbatch=Kbatch) 
+
 
 def rand_data(shape, dtype=torch.float16, scale=1):
     return (scale * torch.rand(shape, device="cuda") - 0.3).to(dtype)
@@ -122,15 +291,15 @@ def call_kernel(
         kbatch
     )
 
-KERNELS = []
-NUM_OPS=296
+KERNELS = [getHeuristicSearchFunction, getHeuristicSearchFunctionGPT4o, getHeuristicSearchFunctionSonnet]
+NUM_OPS=82
 # NUM_OPS=0
-for kbatch in [1, 2, 4, 8]:
-    for opid in range(0, NUM_OPS):
+# for kbatch in [1, 2, 4, 8]:
+#     for opid in range(0, NUM_OPS):
         
-        KERNELS.append(
-            partial(call_kernel, opid=opid+1, kbatch=kbatch)
-        )
+#         KERNELS.append(
+#             partial(call_kernel, opid=opid+1, kbatch=kbatch)
+#         )
 
 @torch.inference_mode()
 def main(save_file: str,
@@ -198,6 +367,7 @@ def main(save_file: str,
             torch.cuda.cudart().cudaProfilerStart()
         return (end_time - start_time) / num_iters
         # times = [s.elapsed_time(e) for s, e in zip(start_events, end_events)]
+
         # assert len(times) == num_iters
         # return float(np.mean(times) / 1000.0)
 
@@ -207,7 +377,7 @@ def main(save_file: str,
     if os.path.exists(save_file):
         os.remove(save_file)
     with open(save_file, "w") as f:
-        f.write("dimension, " + ", ".join([(str( (opid % NUM_OPS ) + 1 ) + "k" + str( 2**((opid // NUM_OPS)) )) + "v" + str( (opid // NUM_OPS // 4) + 1) for opid, _ in enumerate(benchmark_kernels)]) + ", ref_scaled_mm" + "\n")
+        f.write("dimension, " + ", ".join([(str( (opid % NUM_OPS ) + 1 ) + "k" + str( 2**((opid // NUM_OPS)) )) for opid, _ in enumerate(benchmark_kernels)]) + ", ref_scaled_mm" + "\n")
 
     # Benchmark
     dim_seq = []
@@ -231,13 +401,13 @@ def main(save_file: str,
         for opid, kernel in enumerate(benchmark_kernels):
             if do_profile:
                 latency = run_benchmark(
-                    kernel, xqs, wqs, x_scales, w_scales, 
+                    kernel(m, n, k), xqs, wqs, x_scales, w_scales, 
                     num_warmup_iters=num_warmup_iters, num_iters=1, profile=True)
             else:
                 
                 try:
                     latency = run_benchmark(
-                        kernel, xqs, wqs, x_scales, w_scales, 
+                        kernel(m, n, k), xqs, wqs, x_scales, w_scales, 
                         num_warmup_iters=num_warmup_iters, num_iters=num_iters, profile=False)
                 except Exception as e:
                     print(str(e))
@@ -255,7 +425,7 @@ def main(save_file: str,
 
             # output = kernel(xq, wq, x_scale, w_scale, None, True, out_dtype=torch.bfloat16).t()
             try:
-                output = kernel(xq, wq, x_scale, w_scale, output)
+                output = kernel(m, n, k)(xq, wq, x_scale, w_scale, output)
             except Exception as e:
                 print(str(e))
                 continue
@@ -327,7 +497,7 @@ if __name__ == '__main__':
                         "If --profile is set, this number is ignored")
     
     parser.add_argument("-o", "--output", type=str, 
-                        default="benchmark_fp8_machete_mm_rocm_kbatch.csv",
+                        default="benchmark_fp8_machete_mm_rocm_kbatch_heuristic.csv",
                         help="Path to write the results to")
 
     args = parser.parse_args()
