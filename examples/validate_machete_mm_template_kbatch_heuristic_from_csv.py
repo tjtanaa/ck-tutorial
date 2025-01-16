@@ -1,5 +1,6 @@
 import time
 import random
+import csv
 from collections import OrderedDict
 from typing import List, Callable
 import os
@@ -37,50 +38,70 @@ def get_bandwidth(ave_time, M, N, K, A_datatype_size=2, B_datatype_size=2, E_dat
     return gb_per_sec
 
 
-MNK_List = [
-    (3840, 64,64),
-    (3840, 128,128),
-    (3840, 256,256),
-    (3840, 4096, 4096),
-    (3840, 8192, 8192),
-    (3840, 16384, 16384),
-    (56, 8192, 7392),
-    (32, 1024, 8192),
-    (32, 1280, 8192),
-    (32, 8192, 1024),
-    (32, 7168, 8192),
-    (32, 8192, 3584),
-    (5000, 1280, 8192),
-    (5000, 8192, 1024),
-    (5000, 7168, 8192),
-    (5000, 8192, 3584),
-]
+# Path to the CSV file
+csv_file = 'examples/298OpsShapeBenchmarkToRerunForHeuristics.csv'  # Replace with your CSV file path
 
-# Add UC interested weight shape
-for b in range(7):
+# List to store the parsed (M, N, K) tuples
+MNK_List = []
 
-    B = 2**b
-    mnk = [
-        (B, 1280, 8192),
-        (B, 8192, 1024),
-        (B, 7168, 8192),
-        (B, 8192, 3584),
-        (B, 6144, 4096),
-        (B, 4096, 4096),
-        (B, 28672, 4096),
-        (B, 4096, 14336),
-        (B, 2560, 8192),
-        (B, 8192, 2048),
-        (B, 14336, 8192),
-        (B, 8192, 7168),
-        (B, 3072, 4096),
-        (B, 4096, 2048),
-        (B, 2560, 8192),
-        (B, 14336, 4096),
-        (B, 4096, 7168),
-    ]
+# Read the CSV file
+with open(csv_file, mode='r') as file:
+    # Create a CSV reader object
+    csv_reader = csv.reader(file)
+    
+    # Skip the header (first row)
+    next(csv_reader)
+    
+    # Parse each row into a tuple of integers
+    for row in csv_reader:
+        M, N, K = map(int, row)  # Convert strings to integers
+        MNK_List.append((M, N, K))
 
-    MNK_List.extend(mnk)
+
+# MNK_List = [
+#     (3840, 64,64),
+#     (3840, 128,128),
+#     (3840, 256,256),
+#     (3840, 4096, 4096),
+#     (3840, 8192, 8192),
+#     (3840, 16384, 16384),
+#     (56, 8192, 7392),
+#     (32, 1024, 8192),
+#     (32, 1280, 8192),
+#     (32, 8192, 1024),
+#     (32, 7168, 8192),
+#     (32, 8192, 3584),
+#     (5000, 1280, 8192),
+#     (5000, 8192, 1024),
+#     (5000, 7168, 8192),
+#     (5000, 8192, 3584),
+# ]
+
+# # Add UC interested weight shape
+# for b in range(7):
+
+#     B = 2**b
+#     mnk = [
+#         (B, 1280, 8192),
+#         (B, 8192, 1024),
+#         (B, 7168, 8192),
+#         (B, 8192, 3584),
+#         (B, 6144, 4096),
+#         (B, 4096, 4096),
+#         (B, 28672, 4096),
+#         (B, 4096, 14336),
+#         (B, 2560, 8192),
+#         (B, 8192, 2048),
+#         (B, 14336, 8192),
+#         (B, 8192, 7168),
+#         (B, 3072, 4096),
+#         (B, 4096, 2048),
+#         (B, 2560, 8192),
+#         (B, 14336, 4096),
+#         (B, 4096, 7168),
+#     ]
+
+#     MNK_List.extend(mnk)
 
 # # add model related weight shape
 # for b in range(7):
@@ -267,7 +288,6 @@ for b in range(7):
 #     OpID, Kbatch = select_kernel_configSonnet(M, N, K)
 #     return partial(call_kernel, opid=OpID, kbatch=Kbatch) 
 
-
 def pick_matmul_config(M, N, K):
     # ---- K-range #1: up to 1024 ------------------------------------------------
     if K <= 1024:
@@ -414,7 +434,6 @@ def getHeuristicSearchFunction(M, N, K):
     return partial(call_kernel, opid=OpID, kbatch=Kbatch) 
 
 
-
 def rand_data(shape, dtype=torch.float16, scale=1):
     return (scale * torch.rand(shape, device="cuda") - 0.3).to(dtype)
 
@@ -438,9 +457,8 @@ def call_kernel(
         kbatch
     )
 
-# KERNELS = [getHeuristicSearchFunction, getHeuristicSearchFunctionGPT4o, getHeuristicSearchFunctionSonnet]
 KERNELS = [getHeuristicSearchFunction]
-NUM_OPS=82
+NUM_OPS=1
 # NUM_OPS=0
 # for kbatch in [1, 2, 4, 8]:
 #     for opid in range(0, NUM_OPS):

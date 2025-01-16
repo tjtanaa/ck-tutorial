@@ -100,6 +100,7 @@ operations = [
     "ABlockTransferSrcScalarPerVector": 16, 
     "BBlockTransferSrcScalarPerVector": 16
     },
+    #### SELECTED
     {"id": 6, 
      "block_size": 256, 
      "M": 32, "N": 128, "K": 128, 
@@ -168,6 +169,7 @@ operations = [
     "ABlockTransferSrcScalarPerVector": 16, 
     "BBlockTransferSrcScalarPerVector": 16
     },
+    #### SELECTED
     {"id": 10, 
      "block_size": 256, 
      "M": 32, "N": 256, "K": 128, 
@@ -423,6 +425,7 @@ operations = [
     "ABlockTransferSrcScalarPerVector": 16, 
     "BBlockTransferSrcScalarPerVector": 16
     },
+    #### SELECTED
     {"id": 25, 
      "block_size": 256, 
      "M": 16, "N": 64, "K": 256, 
@@ -440,6 +443,7 @@ operations = [
     "ABlockTransferSrcScalarPerVector": 16, 
     "BBlockTransferSrcScalarPerVector": 16
     },
+    #### SELECTED
     {"id": 26, 
      "block_size": 256, 
      "M": 16, "N": 128, "K": 256, 
@@ -542,6 +546,7 @@ operations = [
     "ABlockTransferSrcScalarPerVector": 16, 
     "BBlockTransferSrcScalarPerVector": 16
     },
+    #### SELECTED
     {"id": 32, 
      "block_size": 256, 
      "M": 16, "N": 64, "K": 256, 
@@ -559,6 +564,7 @@ operations = [
     "ABlockTransferSrcScalarPerVector": 16, 
     "BBlockTransferSrcScalarPerVector": 16
     },
+    #### SELECTED
     {"id": 33, 
      "block_size": 256, 
      "M": 16, "N": 128, "K": 256, 
@@ -716,6 +722,7 @@ operations = [
     "ABlockTransferSrcScalarPerVector": 16, 
     "BBlockTransferSrcScalarPerVector": 16
     },
+    #### SELECTED
     {"id": 42, 
      "block_size": 256, 
      "M": 32, "N": 128, "K": 128, 
@@ -784,6 +791,7 @@ operations = [
     "ABlockTransferSrcScalarPerVector": 16, 
     "BBlockTransferSrcScalarPerVector": 16
     },
+    #### SELECTED
     {"id": 46, 
      "block_size": 256, 
      "M": 32, "N": 256, "K": 128, 
@@ -1095,6 +1103,7 @@ operations = [
     "ABlockTransferSrcScalarPerVector": 16, 
     "BBlockTransferSrcScalarPerVector": 16
     },
+    #### SELECTED
     {"id": 64, 
      "block_size": 256, 
      "M": 32, "N": 128, "K": 128, 
@@ -1163,6 +1172,7 @@ operations = [
     "ABlockTransferSrcScalarPerVector": 16, 
     "BBlockTransferSrcScalarPerVector": 16
     },
+    #### SELECTED
     {"id": 68, 
      "block_size": 256, 
      "M": 32, "N": 256, "K": 128, 
@@ -1918,6 +1928,7 @@ operations = [
     "ABlockTransferSrcScalarPerVector": 16, 
     "BBlockTransferSrcScalarPerVector": 16
     },
+    #### SELECTED
     {"id": 112, 
      "block_size": 256, 
      "M": 32, "N": 256, "K": 128, 
@@ -2230,6 +2241,7 @@ operations = [
     "ABlockTransferSrcScalarPerVector": 16, 
     "BBlockTransferSrcScalarPerVector": 16
     },
+    #### SELECTED
     {"id": 130, 
      "block_size": 256, 
      "M": 32, "N": 128, "K": 128, 
@@ -2298,6 +2310,7 @@ operations = [
     "ABlockTransferSrcScalarPerVector": 16, 
     "BBlockTransferSrcScalarPerVector": 16
     },
+    #### SELECTED
     {"id": 134, 
      "block_size": 256, 
      "M": 32, "N": 256, "K": 128, 
